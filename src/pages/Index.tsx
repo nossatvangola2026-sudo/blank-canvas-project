@@ -1,14 +1,17 @@
+import Navbar from "@/components/layout/Navbar";
+import HeroSection from "@/components/home/HeroSection";
+import TasksSection from "@/components/home/TasksSection";
+import HowItWorksSection from "@/components/home/HowItWorksSection";
+import Footer from "@/components/home/Footer";
+
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-semibold tracking-tight text-foreground">
-          Projeto em Branco
-        </h1>
-        <p className="text-muted-foreground text-lg">
-          Pronto para começar a construir.
-        </p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <HeroSection />
+      <TasksSection />
+      <HowItWorksSection />
+      <Footer />
     </div>
   );
 };
