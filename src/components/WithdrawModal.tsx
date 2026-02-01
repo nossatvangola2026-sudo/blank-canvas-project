@@ -15,8 +15,8 @@ interface Withdrawal {
   id: string;
   amount: number;
   status: string;
-  payment_method: string;
-  phone_number: string | null;
+  payment_method: string | null;
+  payment_details: unknown;
   requested_at: string;
 }
 
@@ -153,7 +153,7 @@ const WithdrawModal = ({ isOpen, onClose, balance, onSuccess }: WithdrawModalPro
         user_id: user?.id,
         amount: amountNum,
         payment_method: paymentMethod,
-        phone_number: accountInfo,
+        payment_details: { account: accountInfo },
       });
 
     if (error) {
@@ -352,7 +352,7 @@ const WithdrawModal = ({ isOpen, onClose, balance, onSuccess }: WithdrawModalPro
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{getMethodName(withdrawal.payment_method)}</span>
+                        <span>{getMethodName(withdrawal.payment_method || '')}</span>
                         <span>{new Date(withdrawal.requested_at).toLocaleDateString('pt-AO')}</span>
                       </div>
                     </CardContent>

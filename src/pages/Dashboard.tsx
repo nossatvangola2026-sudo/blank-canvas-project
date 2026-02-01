@@ -13,12 +13,18 @@ import { useToast } from '@/hooks/use-toast';
 interface Task {
   id: string;
   title: string;
-  channel_name: string;
-  video_id: string;
-  duration_seconds: number;
+  description: string | null;
+  video_url: string;
+  video_duration: number;
   reward_amount: number;
   status: string;
 }
+
+// Helper to extract YouTube video ID from URL
+const extractVideoId = (url: string): string => {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\n]+)/);
+  return match ? match[1] : url;
+};
 
 interface TaskCompletion {
   task_id: string;
@@ -256,9 +262,9 @@ const Dashboard = () => {
               <div key={task.id} onClick={() => handleTaskClick(task)} className="cursor-pointer">
                 <TaskCard
                   title={task.title}
-                  channelName={task.channel_name}
-                  videoId={task.video_id}
-                  duration={task.duration_seconds}
+                  channelName={task.description || 'MakeMoney'}
+                  videoId={extractVideoId(task.video_url)}
+                  duration={task.video_duration}
                   reward={task.reward_amount}
                   index={index}
                 />

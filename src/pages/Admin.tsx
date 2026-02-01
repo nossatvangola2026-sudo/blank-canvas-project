@@ -19,9 +19,9 @@ import { useToast } from '@/hooks/use-toast';
 interface Task {
   id: string;
   title: string;
-  channel_name: string;
-  video_id: string;
-  duration_seconds: number;
+  description: string | null;
+  video_url: string;
+  video_duration: number;
   reward_amount: number;
   status: string;
   created_at: string;
@@ -40,13 +40,13 @@ interface Withdrawal {
   user_id: string;
   amount: number;
   status: string;
-  payment_method: string;
-  phone_number: string | null;
+  payment_method: string | null;
+  payment_details: unknown;
   requested_at: string;
   profiles?: { username: string | null; email?: string | null };
 }
 
-interface DeviceFingerprint {
+interface DeviceRegistration {
   id: string;
   user_id: string;
   fingerprint: string;
@@ -58,7 +58,6 @@ interface DeviceFingerprint {
   created_at: string;
   last_seen_at: string;
   is_blocked: boolean;
-  block_reason: string | null;
   profiles?: { username: string | null; email?: string | null };
 }
 
@@ -74,9 +73,9 @@ const Admin = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskForm, setTaskForm] = useState({
     title: '',
-    channel_name: '',
-    video_id: '',
-    duration_seconds: 180,
+    description: '',
+    video_url: '',
+    video_duration: 180,
     reward_amount: 50,
     status: 'active',
   });
@@ -91,7 +90,7 @@ const Admin = () => {
   const [isLoadingWithdrawals, setIsLoadingWithdrawals] = useState(true);
 
   // Devices state
-  const [devices, setDevices] = useState<DeviceFingerprint[]>([]);
+  const [devices, setDevices] = useState<DeviceRegistration[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
 
   useEffect(() => {
@@ -120,23 +119,13 @@ const Admin = () => {
     setIsLoadingUsers(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, username, balance, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching users:', error);
     } else {
-      // Fetch emails for users without username
-      const usersWithEmails = await Promise.all(
-        (data || []).map(async (u) => {
-          if (!u.username) {
-            const { data: emailData } = await supabase.rpc('get_user_email', { _user_id: u.id });
-            return { ...u, email: emailData };
-          }
-          return u;
-        })
-      );
-      setUsers(usersWithEmails);
+      setUsers(data || []);
     }
     setIsLoadingUsers(false);
   };
@@ -151,7 +140,7 @@ const Admin = () => {
     if (error) {
       console.error('Error fetching withdrawals:', error);
     } else {
-      // Fetch usernames and emails separately
+      // Fetch usernames separately
       const withdrawalsWithProfiles = await Promise.all(
         (data || []).map(async (w) => {
           const { data: profileData } = await supabase
@@ -160,13 +149,7 @@ const Admin = () => {
             .eq('id', w.user_id)
             .maybeSingle();
           
-          let email = null;
-          if (!profileData?.username) {
-            const { data: emailData } = await supabase.rpc('get_user_email', { _user_id: w.user_id });
-            email = emailData;
-          }
-          
-          return { ...w, profiles: { ...profileData, email } };
+          return { ...w, profiles: profileData };
         })
       );
       setWithdrawals(withdrawalsWithProfiles);
@@ -177,14 +160,14 @@ const Admin = () => {
   const fetchDevices = async () => {
     setIsLoadingDevices(true);
     const { data, error } = await supabase
-      .from('device_fingerprints')
+      .from('device_registrations')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching devices:', error);
     } else {
-      // Fetch usernames and emails separately
+      // Fetch usernames separately
       const devicesWithProfiles = await Promise.all(
         (data || []).map(async (d) => {
           const { data: profileData } = await supabase
@@ -193,27 +176,18 @@ const Admin = () => {
             .eq('id', d.user_id)
             .maybeSingle();
           
-          let email = null;
-          if (!profileData?.username) {
-            const { data: emailData } = await supabase.rpc('get_user_email', { _user_id: d.user_id });
-            email = emailData;
-          }
-          
-          return { ...d, profiles: { ...profileData, email } };
+          return { ...d, profiles: profileData };
         })
       );
-      setDevices(devicesWithProfiles as DeviceFingerprint[]);
+      setDevices(devicesWithProfiles);
     }
     setIsLoadingDevices(false);
   };
 
-  const handleBlockDevice = async (deviceId: string, shouldBlock: boolean, reason?: string) => {
+  const handleBlockDevice = async (deviceId: string, shouldBlock: boolean) => {
     const { error } = await supabase
-      .from('device_fingerprints')
-      .update({ 
-        is_blocked: shouldBlock, 
-        block_reason: shouldBlock ? (reason || 'Bloqueado pelo administrador') : null 
-      })
+      .from('device_registrations')
+      .update({ is_blocked: shouldBlock })
       .eq('id', deviceId);
 
     if (error) {
@@ -232,11 +206,11 @@ const Admin = () => {
         .from('tasks')
         .update({
           title: taskForm.title,
-          channel_name: taskForm.channel_name,
-          video_id: taskForm.video_id,
-          duration_seconds: taskForm.duration_seconds,
+          description: taskForm.description,
+          video_url: taskForm.video_url,
+          video_duration: taskForm.video_duration,
           reward_amount: taskForm.reward_amount,
-          status: taskForm.status as 'active' | 'inactive',
+          status: taskForm.status,
         })
         .eq('id', editingTask.id);
 
@@ -251,11 +225,11 @@ const Admin = () => {
         .from('tasks')
         .insert({
           title: taskForm.title,
-          channel_name: taskForm.channel_name,
-          video_id: taskForm.video_id,
-          duration_seconds: taskForm.duration_seconds,
+          description: taskForm.description,
+          video_url: taskForm.video_url,
+          video_duration: taskForm.video_duration,
           reward_amount: taskForm.reward_amount,
-          status: taskForm.status as 'active' | 'inactive',
+          status: taskForm.status,
         });
 
       if (error) {
@@ -275,9 +249,9 @@ const Admin = () => {
     setEditingTask(task);
     setTaskForm({
       title: task.title,
-      channel_name: task.channel_name,
-      video_id: task.video_id,
-      duration_seconds: task.duration_seconds,
+      description: task.description || '',
+      video_url: task.video_url,
+      video_duration: task.video_duration,
       reward_amount: task.reward_amount,
       status: task.status,
     });
@@ -299,9 +273,9 @@ const Admin = () => {
     setEditingTask(null);
     setTaskForm({
       title: '',
-      channel_name: '',
-      video_id: '',
-      duration_seconds: 180,
+      description: '',
+      video_url: '',
+      video_duration: 180,
       reward_amount: 50,
       status: 'active',
     });
@@ -321,11 +295,10 @@ const Admin = () => {
     } else {
       toast({ title: action === 'approved' ? 'Saque aprovado!' : 'Saque rejeitado!' });
       fetchWithdrawals();
-      fetchUsers(); // Refresh balances
+      fetchUsers();
     }
   };
 
-  // Helper function to display user identification (username or email)
   const getUserDisplayName = (username: string | null | undefined, email: string | null | undefined): string => {
     if (username) return username;
     if (email) return email;
@@ -337,16 +310,21 @@ const Admin = () => {
       case 'active':
         return <Badge className="bg-green-500/20 text-green-500">Ativo</Badge>;
       case 'inactive':
-        return <Badge className="bg-gray-500/20 text-gray-500">Inativo</Badge>;
+        return <Badge className="bg-muted text-muted-foreground">Inativo</Badge>;
       case 'approved':
         return <Badge className="bg-green-500/20 text-green-500">Aprovado</Badge>;
       case 'rejected':
-        return <Badge className="bg-red-500/20 text-red-500">Rejeitado</Badge>;
+        return <Badge className="bg-destructive/20 text-destructive">Rejeitado</Badge>;
       case 'pending':
-        return <Badge className="bg-yellow-500/20 text-yellow-500">Pendente</Badge>;
+        return <Badge className="bg-yellow-500/20 text-yellow-600">Pendente</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
+  };
+
+  const extractVideoId = (url: string): string => {
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\n]+)/);
+    return match ? match[1] : url;
   };
 
   return (
@@ -417,7 +395,7 @@ const Admin = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Título</TableHead>
-                        <TableHead>Canal</TableHead>
+                        <TableHead>Video ID</TableHead>
                         <TableHead>Duração</TableHead>
                         <TableHead>Recompensa</TableHead>
                         <TableHead>Status</TableHead>
@@ -428,8 +406,8 @@ const Admin = () => {
                       {tasks.map((task) => (
                         <TableRow key={task.id}>
                           <TableCell className="font-medium">{task.title}</TableCell>
-                          <TableCell>{task.channel_name}</TableCell>
-                          <TableCell>{Math.floor(task.duration_seconds / 60)}min</TableCell>
+                          <TableCell className="text-xs font-mono">{extractVideoId(task.video_url)}</TableCell>
+                          <TableCell>{Math.floor(task.video_duration / 60)}min</TableCell>
                           <TableCell>Kz {task.reward_amount.toFixed(2)}</TableCell>
                           <TableCell>{getStatusBadge(task.status)}</TableCell>
                           <TableCell>
@@ -506,7 +484,6 @@ const Admin = () => {
                         <TableHead>Usuário</TableHead>
                         <TableHead>Valor</TableHead>
                         <TableHead>Método</TableHead>
-                        <TableHead>Telefone</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead>Ações</TableHead>
@@ -519,8 +496,7 @@ const Admin = () => {
                             {getUserDisplayName(withdrawal.profiles?.username, withdrawal.profiles?.email)}
                           </TableCell>
                           <TableCell>Kz {withdrawal.amount.toFixed(2)}</TableCell>
-                          <TableCell className="capitalize">{withdrawal.payment_method}</TableCell>
-                          <TableCell>{withdrawal.phone_number || '-'}</TableCell>
+                          <TableCell className="capitalize">{withdrawal.payment_method || '-'}</TableCell>
                           <TableCell>{getStatusBadge(withdrawal.status)}</TableCell>
                           <TableCell>
                             {new Date(withdrawal.requested_at).toLocaleDateString('pt-AO')}
@@ -540,7 +516,7 @@ const Admin = () => {
                                   size="icon"
                                   onClick={() => handleWithdrawalAction(withdrawal.id, 'rejected')}
                                 >
-                                  <XCircle className="h-4 w-4 text-red-500" />
+                                  <XCircle className="h-4 w-4 text-destructive" />
                                 </Button>
                               </div>
                             )}
@@ -595,7 +571,7 @@ const Admin = () => {
                       </TableHeader>
                       <TableBody>
                         {devices.map((device) => (
-                          <TableRow key={device.id} className={device.is_blocked ? 'bg-red-500/10' : ''}>
+                          <TableRow key={device.id} className={device.is_blocked ? 'bg-destructive/10' : ''}>
                             <TableCell className="font-medium">
                               {getUserDisplayName(device.profiles?.username, device.profiles?.email)}
                             </TableCell>
@@ -610,7 +586,7 @@ const Admin = () => {
                             </TableCell>
                             <TableCell>
                               {device.is_blocked ? (
-                                <Badge className="bg-red-500/20 text-red-500">
+                                <Badge className="bg-destructive/20 text-destructive">
                                   <Ban className="h-3 w-3 mr-1" />
                                   Bloqueado
                                 </Badge>
@@ -626,7 +602,7 @@ const Admin = () => {
                                 variant="ghost" 
                                 size="sm"
                                 onClick={() => handleBlockDevice(device.id, !device.is_blocked)}
-                                className={device.is_blocked ? 'text-green-500' : 'text-red-500'}
+                                className={device.is_blocked ? 'text-green-500' : 'text-destructive'}
                               >
                                 {device.is_blocked ? (
                                   <>
@@ -676,23 +652,23 @@ const Admin = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="channel">Nome do Canal</Label>
+              <Label htmlFor="description">Descrição / Nome do Canal</Label>
               <Input
-                id="channel"
-                value={taskForm.channel_name}
-                onChange={(e) => setTaskForm({ ...taskForm, channel_name: e.target.value })}
-                placeholder="Nome do canal"
+                id="description"
+                value={taskForm.description}
+                onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                placeholder="Nome do canal ou descrição"
                 className="bg-background/50"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="videoId">ID do Vídeo (YouTube)</Label>
+              <Label htmlFor="videoUrl">URL do Vídeo (YouTube)</Label>
               <Input
-                id="videoId"
-                value={taskForm.video_id}
-                onChange={(e) => setTaskForm({ ...taskForm, video_id: e.target.value })}
-                placeholder="Ex: dQw4w9WgXcQ"
+                id="videoUrl"
+                value={taskForm.video_url}
+                onChange={(e) => setTaskForm({ ...taskForm, video_url: e.target.value })}
+                placeholder="https://www.youtube.com/watch?v=..."
                 className="bg-background/50"
               />
             </div>
@@ -703,8 +679,8 @@ const Admin = () => {
                 <Input
                   id="duration"
                   type="number"
-                  value={taskForm.duration_seconds}
-                  onChange={(e) => setTaskForm({ ...taskForm, duration_seconds: parseInt(e.target.value) })}
+                  value={taskForm.video_duration}
+                  onChange={(e) => setTaskForm({ ...taskForm, video_duration: parseInt(e.target.value) })}
                   className="bg-background/50"
                 />
               </div>
@@ -739,7 +715,7 @@ const Admin = () => {
                       {status === 'active' ? (
                         <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
                       ) : (
-                        <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                        <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
                       )}
                       <span className="capitalize">{status === 'active' ? 'Ativo' : 'Inativo'}</span>
                     </CardContent>
