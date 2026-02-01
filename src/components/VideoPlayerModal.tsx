@@ -13,11 +13,18 @@ import { useAuth } from '@/contexts/AuthContext';
 interface Task {
   id: string;
   title: string;
-  channel_name: string;
-  video_id: string;
-  duration_seconds: number;
+  description: string | null;
+  video_url: string;
+  video_duration: number;
   reward_amount: number;
+  status: string;
 }
+
+// Helper to extract YouTube video ID from URL
+const extractVideoId = (url: string): string => {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\n]+)/);
+  return match ? match[1] : url;
+};
 
 interface VideoPlayerModalProps {
   isOpen: boolean;
@@ -53,8 +60,8 @@ const VideoPlayerModal = ({ isOpen, onClose, task, onComplete }: VideoPlayerModa
     pauseVideo,
     remainingTime,
   } = useYouTubePlayer({
-    videoId: task?.video_id || '',
-    targetDuration: task?.duration_seconds || 0,
+    videoId: task ? extractVideoId(task.video_url) : '',
+    targetDuration: task?.video_duration || 0,
     onComplete: handleVideoComplete,
     onViolation: handleViolation,
   });
@@ -143,7 +150,7 @@ const VideoPlayerModal = ({ isOpen, onClose, task, onComplete }: VideoPlayerModa
 
   if (!task) return null;
 
-  const progress = Math.min(((task.duration_seconds - remainingTime) / task.duration_seconds) * 100, 100);
+  const progress = Math.min(((task.video_duration - remainingTime) / task.video_duration) * 100, 100);
   const minutes = Math.floor(remainingTime / 60);
   const seconds = Math.floor(remainingTime % 60);
 
